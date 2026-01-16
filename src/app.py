@@ -96,20 +96,39 @@ def _get_db() -> DatasetsDatabase:
 
 
 def _render_app() -> None:
-    st.set_page_config(page_title="Masader Search", layout="wide")
+    st.set_page_config(
+        page_title="Masader Search",
+        page_icon="",
+        initial_sidebar_state="collapsed",
+        layout="wide",
+    )
+    st.markdown("""
+    <style>
+        input {color: #0054a3 !important;}
+    </style>
+    """, unsafe_allow_html=True)
+    "# 📮 :rainbow[Masader Search]"
+
+    st.info(
+        """
+        This is an enhanced Masader Search that allows users to find datasets in Masader using natural language.
+        It uses an LLM to generate the SQL query from a given natural text prompt. warning: this tool is mostly useful
+        for queries that are deterministic and simple. If you face any issues post them on [GitHub](https://github.com/zaidalyafeai/Masader-Search).
+        """,
+        icon="ℹ️",
+    )
 
     def load_css(file_name: str):
         """A function to load a css file."""
         with open(file_name) as f:
             st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-    st.markdown("<h1>Masader Search</h1>", unsafe_allow_html=True)
 
     st.markdown("<h4>Examples:</h4>", unsafe_allow_html=True)
     examples = {
         "Audio datasets (more than 1000 hours)": "SELECT id, Name FROM DATASETS WHERE Form='audio' AND Volume > 1000 AND Unit='hours'",
         "Permissive licensed datasets": "SELECT id, Name FROM DATASETS WHERE License <> 'custom' AND License NOT LIKE '%LDC%' AND License NOT LIKE '%ELRA%' AND License <> 'unknown'",
-        "HuggingFace hosted datasets": "SELECT id, Name FROM DATASETS WHERE Host='HuggingFace' or Link LIKE '%huggingface%'",
+        "Datasets for language modelling > 100 billion tokens": "SELECT id, Name FROM DATASETS WHERE Tasks LIKE '%language modeling%' AND Volume > 100000000000",
     }
 
     if 'query' not in st.session_state:
@@ -120,17 +139,17 @@ def _render_app() -> None:
         if cols[i].button(key, type="secondary"):
             st.session_state.query = key
 
-    st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
+    # st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
 
     query_text = st.text_input(
         label="",
-        placeholder="Type your query here (e.g., datasets that contain the Egypt Dialect)",
+        placeholder="Type your query here (e.g., datasets that contain the Egyptian Dialect)",
         value=st.session_state.query,
     )
 
     left, mid, right = st.columns([1, 1, 1])
     with mid:
-        run = st.button("Get metadata", type="primary", use_container_width=True)
+        run = st.button("Search Masader", type="primary", use_container_width=True)
 
     model_name = "anthropic/claude-opus-4.5"
     schema_name = "ar"
@@ -161,7 +180,7 @@ def _render_app() -> None:
         st.session_state.query = ""
 
         with st.spinner("Querying the database..."):
-            st.subheader("Generated SQL")
+            st.subheader("SQL Query")
             st.code(sql_query or "", language="sql")
 
 
