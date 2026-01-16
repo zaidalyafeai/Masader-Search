@@ -1,14 +1,17 @@
-from openai import OpenAI
+
+from schema import get_schema
 import os
 import json
 import time
 import streamlit as st
-from schema import get_schema
+import pandas as pd
+from openai import OpenAI
 from dotenv import load_dotenv
-from utils import read_json
-from datasets import load_dataset
-load_dotenv()
+from db import DatasetsDatabase
+from utils import process_sql
+from tqdm import tqdm
 
+load_dotenv()
 def get_metadata(
     text_input,
     model_name="moonshotai/kimi-k2",
@@ -19,11 +22,17 @@ def get_metadata(
     version = "2.0",
 ):
     schema = get_schema(schema_name)
+    # keys = list(json.loads(schema.schema()).keys()) 
+    system_prompt = f"""
+    You are a helpful assistant that generates SQL queries (using sqlite3) based on a given text input. The database contains 
+    datasets with the following schema: {schema.schema()}, the table name is DATASETS. Each key in the schema represents a column in the table. 
+    You need to return the id, Name of the dataset. Return the SQL query ONLY, do not return any additional text.
+    """
+    prompt = text_input
     for i in range(max_retries):
         predictions = {}
         error = None
-        prompt, sys_prompt = schema.get_prompts(text_input, readme = "", version = version)
-        messages = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": prompt}]
+        messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}]
 
         
         if backend == "openrouter":
@@ -61,8 +70,8 @@ def get_metadata(
                         messages=messages,
                     )
         try:
-            response =  message.choices[0].message.content
-            predictions = read_json(response)
+            predictions =  message.choices[0].message.content
+            predictions = process_sql(predictions)
         except json.JSONDecodeError as e:
             error = str(e)
         except Exception as e:
@@ -78,120 +87,115 @@ def get_metadata(
         else:
             pass
     time.sleep(timeout)
-    if predictions == {}:
-        predictions = schema.generate_metadata(method = 'default').json()
     return message, predictions, error
 
-def compare(metadata, pred_metadata):
-    schema = get_schema("ar")
-    gold_metadata = schema(metadata = metadata)
-    score = gold_metadata.compare_with(pred_metadata, return_metrics_only = True)
-    return {"f1": score["f1"]}
 
-        
-def add_annotations(pred_metadata):
-    pred_metadata["annotations_from_paper"] = {}
-    for key in pred_metadata.keys():
-        if key in ['annotations_from_paper']:
-            continue
-        pred_metadata["annotations_from_paper"][key] = 1
-    return pred_metadata        
+@st.cache_resource
+def _get_db() -> DatasetsDatabase:
+    return DatasetsDatabase()
 
-def main():
-    st.set_page_config(
-        page_title="Masader Chat",
-        page_icon="🤖",
-        layout="wide"
+
+def _render_app() -> None:
+    st.set_page_config(page_title="Masader Search", layout="wide")
+
+    def load_css(file_name: str):
+        """A function to load a css file."""
+        with open(file_name) as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+    st.markdown("<h1>Masader Search</h1>", unsafe_allow_html=True)
+
+    st.markdown("<h4>Examples:</h4>", unsafe_allow_html=True)
+    examples = {
+        "Audio datasets (more than 1000 hours)": "SELECT id, Name FROM DATASETS WHERE Form='audio' AND Volume > 1000 AND Unit='hours'",
+        "Permissive licensed datasets": "SELECT id, Name FROM DATASETS WHERE License <> 'custom' AND License NOT LIKE '%LDC%' AND License NOT LIKE '%ELRA%' AND License <> 'unknown'",
+        "HuggingFace hosted datasets": "SELECT id, Name FROM DATASETS WHERE Host='HuggingFace' or Link LIKE '%huggingface%'",
+    }
+
+    if 'query' not in st.session_state:
+        st.session_state.query = ""
+
+    cols = st.columns(len(examples))
+    for i, (key, value) in enumerate(examples.items()):
+        if cols[i].button(key, type="secondary"):
+            st.session_state.query = key
+
+    st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
+
+    query_text = st.text_input(
+        label="",
+        placeholder="Type your query here (e.g., datasets that contain the Egypt Dialect)",
+        value=st.session_state.query,
     )
-    dataset = load_dataset("src/masader")
-    
-    st.title("🤖 Masader Chat")
-    st.markdown("Extract metadata from dataset descriptions using AI models")
-    
-    # Sidebar for configuration
-    st.sidebar.header("Configuration")
-    
-    # Model selection
-    model_name = st.sidebar.selectbox(
-        "Select Model",
-        options=["moonshotai/kimi-k2", "qwen3", "nuextract"],
-        index=0
-    )
-    
-    # Schema selection
-    schema_name = st.sidebar.selectbox(
-        "Select Schema",
-        options=["ar", "en"],
-        index=0
-    )
-    
-    # Backend selection
-    backend = st.sidebar.selectbox(
-        "Select Backend",
-        options=["openrouter"],
-        index=0
-    )
-    
-    # Advanced settings
-    with st.sidebar.expander("Advanced Settings"):
-        max_retries = st.slider("Max Retries", min_value=1, max_value=5, value=3)
-        timeout = st.slider("Timeout (seconds)", min_value=1, max_value=10, value=3)
-        version = st.selectbox("Version", options=["1.0", "2.0"], index=1)
-    
-    # Main interface
-    st.header("Input")
-    
-    # Text input area
-    text_input = st.text_area(
-        "Enter dataset description or name:",
-        placeholder="e.g., PEARL dataset",
-        height=100
-    )
-    
-    # Process button
-    if st.button("🚀 Process", type="primary"):
-        if not text_input.strip():
-            st.error("Please enter some text to process.")
+
+    left, mid, right = st.columns([1, 1, 1])
+    with mid:
+        run = st.button("Get metadata", type="primary", use_container_width=True)
+
+    model_name = "anthropic/claude-opus-4.5"
+    schema_name = "ar"
+
+    if run or st.session_state.query:
+        if not query_text.strip():
+            st.warning("Please enter a query.")
+            st.session_state.query = ""
             return
+
+        if "SELECT" in query_text.upper():
+            sql_query = query_text
+            _message, error = None, None
+        else:
+            if not os.environ.get("OPENROUTER_API_KEY"):
+                st.error("Missing OPENROUTER_API_KEY in your environment.")
+                return
+            with st.spinner("Generating SQL..."):
+                if query_text in examples:
+                    sql_query = examples[query_text]
+                else:
+                    _message, sql_query, error = get_metadata(
+                        query_text,
+                        model_name=model_name,
+                        schema_name=schema_name,
+                    )
         
-        # Show processing status
-        with st.spinner("Processing..."):
-            try:
-                message, predictions, error = get_metadata(
-                    text_input=text_input,
-                    model_name=model_name,
-                    schema_name=schema_name,
-                    max_retries=max_retries,
-                    backend=backend,
-                    timeout=timeout,
-                    version=version
-                )
-                
-                # Display results
-                st.header("Results")
-                
-                # Show error if any
-                if error:
-                    st.error(f"Error: {error}")
-                
-                # Show predictions
-                if predictions:
-                    st.subheader("📊 Extracted Metadata")
-                    st.json(predictions)
-                    pred_metadata = add_annotations(predictions)                    
-                    dataset = dataset.map(compare, fn_kwargs={"pred_metadata": pred_metadata})
-                    sorted_dataset = dataset.sort("f1", reverse=True)
-                    for dataset in sorted_dataset['train']:
-                        f1_score = dataset['f1']
-                        if f1_score > 0.7:
-                            st.write(dataset['Name'], dataset["Link"], f1_score)
-                        else:
-                            break
-                
-            except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
+        st.session_state.query = ""
 
-if __name__ == "__main__":
-    main()
+        with st.spinner("Querying the database..."):
+            st.subheader("Generated SQL")
+            st.code(sql_query or "", language="sql")
 
-    
+
+            if not sql_query or not str(sql_query).strip():
+                st.warning("No SQL was generated.")
+                return
+
+            db = _get_db()
+            rows = db.query(sql_query)
+
+        st.subheader("Datasets")
+        st.write(f"Retrived {len(rows)} datasets")
+
+        if not rows:
+            st.info("No results.")
+            return
+
+        df = pd.DataFrame(rows)
+        if "id" in df.columns:
+            df["id"] = df["id"].apply(lambda x: f"https://arbml.github.io/masader/card?id={x}")
+
+        st.dataframe(
+            df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "id": st.column_config.LinkColumn("id", display_text=r".*id=([0-9]+)$"),
+            },
+        )
+
+
+_render_app()
+
+### Problems:
+### 1. when searching for the dialects it doesn't consider the Subsets column
+### 2. seems anthropic/claude-opus-4.5 is the best for now 
+### 3. I need to create a dataset for evaluation
