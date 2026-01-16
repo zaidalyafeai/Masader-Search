@@ -2,15 +2,15 @@ import sqlite3
 from typing import List, Dict, Any
 from schema import get_schema
 import json
-from datasets import load_dataset
-
+import requests
+URL = "https://arbml.github.io/masader-webservice/datasets"
 class DatasetsDatabase:
     def __init__(self, db_name: str = "datasets.db"):
         """Initialize the database connection and create table if needed."""
         self.db_name = db_name
-        self.conn = sqlite3.connect(db_name)
+        self.conn = sqlite3.connect(db_name, check_same_thread=False)
         self.cursor = self.conn.cursor()
-        self.dataset = load_dataset("src/masader")
+        self.dataset = requests.get(URL).json()
         self.schema = json.loads(get_schema("ar").schema())
         self.keys = [key.replace(" ", "_") for key in self.schema.keys()]
         self.create_table()
@@ -42,7 +42,7 @@ class DatasetsDatabase:
             else:
                 row += " NOT NULL DEFAULT ''"
             command += row + ", "
-        command += "id INTEGER PRIMARY KEY AUTOINCREMENT)"
+        command += "id INTEGER PRIMARY KEY)"
         self.cursor.execute(command)
         self.conn.commit()
     
@@ -53,9 +53,8 @@ class DatasetsDatabase:
         if self.cursor.fetchone()[0] > 0:
             return
         
-        data = load_dataset("src/masader")
         sample_data = []
-        for item in data['train']:
+        for item in self.dataset:
             sample = []
             for key in self.keys:
                 value = item[key.replace("_", " ")]
