@@ -1,7 +1,7 @@
 from db import DatasetsDatabase
 import json
 from tqdm import tqdm
-from appv2 import get_metadata
+from app import get_metadata
 
 def evaluate(db, model_name = "google/gemini-3-pro-preview"):
     with open("src/evals.json", "r") as f:
