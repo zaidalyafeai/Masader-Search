@@ -3,6 +3,8 @@ from typing import List, Dict, Any
 from schema import get_schema
 import json
 import requests
+from typing import Optional, List, Dict, Any
+from datetime import datetime
 URL = "https://arbml.github.io/masader-webservice/datasets"
 class DatasetsDatabase:
     def __init__(self, db_name: str = "datasets.db"):
@@ -14,6 +16,8 @@ class DatasetsDatabase:
         self.schema = json.loads(get_schema("ar").schema())
         self.keys = [key.replace(" ", "_") for key in self.schema.keys()]
         self.create_table()
+        self.create_table()
+        self.create_query_log_table()
         self.insert_sample_data()
     
     def create_table(self):
@@ -46,6 +50,96 @@ class DatasetsDatabase:
         self.cursor.execute(command)
         self.conn.commit()
     
+    def create_query_log_table(self):
+        """Create a table to store user queries."""
+        command = """
+        CREATE TABLE IF NOT EXISTS query_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            natural_language_query TEXT,
+            sql_query TEXT NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            response_count INTEGER DEFAULT 0
+        )
+        """
+        self.cursor.execute(command)
+        self.conn.commit()
+        
+    def log_query(self, natural_language_query: str, sql_query: str, response_count: int = 0) -> int:
+        """Log a user query to the database.
+        
+        Args:
+            natural_language_query: The user's original natural language query
+            sql_query: The generated SQL query
+            response_count: Number of results returned for this query
+            
+        Returns:
+            int: The ID of the inserted log entry
+        """
+        self.cursor.execute(
+            """
+            INSERT INTO query_logs (natural_language_query, sql_query, timestamp, response_count)
+            VALUES (?, ?, DATETIME('now'), ?)
+            """,
+            (natural_language_query, sql_query, response_count)
+        )
+        self.conn.commit()
+        return self.cursor.lastrowid
+        
+    def get_query_stats(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get query statistics from the log.
+        
+        Args:
+            limit: Maximum number of recent queries to return
+            
+        Returns:
+            List of query log entries with their statistics
+        """
+        self.cursor.execute(
+            """
+            SELECT 
+                query_text,
+                COUNT(*) as query_count,
+                AVG(response_count) as avg_results,
+                MIN(timestamp) as first_seen,
+                MAX(timestamp) as last_seen
+            FROM query_logs
+            GROUP BY query_text
+            ORDER BY query_count DESC
+            LIMIT ?
+            """,
+            (limit,)
+        )
+        
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+        
+    def get_recent_queries(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get the most recent queries.
+        
+        Args:
+            limit: Maximum number of recent queries to return
+            
+        Returns:
+            List of recent query log entries
+        """
+        self.cursor.execute(
+            """
+            SELECT 
+                id,
+                natural_language_query,
+                sql_query,
+                timestamp,
+                response_count
+            FROM query_logs
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """,
+            (limit,)
+        )
+        
+        columns = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+
     def insert_sample_data(self):
         """Insert sample data into the datasets table."""
         # Check if data already exists
