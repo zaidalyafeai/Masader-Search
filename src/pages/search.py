@@ -2,8 +2,10 @@
 import os
 import streamlit as st
 import pandas as pd
+import time
 from db import DatasetsDatabase
 from utils import get_metadata
+from rate_limiter import RateLimiter, get_client_ip
 
 @st.cache_resource
 def _get_db() -> DatasetsDatabase:
@@ -11,6 +13,19 @@ def _get_db() -> DatasetsDatabase:
 
 
 def _render_app() -> None:
+    # Initialize rate limiter: 10 requests per minute per IP
+    if 'rate_limiter' not in st.session_state:
+        st.session_state.rate_limiter = RateLimiter(requests=5, time_window=60)  # 10 requests per minute
+    
+    rate_limiter = st.session_state.rate_limiter
+    client_ip = get_client_ip()
+    
+    # Check rate limit
+    if not rate_limiter.is_allowed(client_ip):
+        retry_after = rate_limiter.get_retry_after(client_ip)
+        st.error(f"Rate limit exceeded. Please try again in {retry_after} seconds.")
+        return
+
     st.markdown("""
     <style>
         input {color: #0054a3 !important;}
@@ -61,7 +76,7 @@ def _render_app() -> None:
     with mid:
         run = st.button("Search Masader", type="primary")
 
-    model_name = "anthropic/claude-opus-4.5"
+    model_name = "moonshotai/kimi-k2"
     schema_name = "ar"
 
     if run:
