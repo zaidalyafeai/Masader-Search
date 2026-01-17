@@ -68,6 +68,12 @@ def _render_app() -> None:
         if not query_text.strip():
             st.warning("Please enter a query.")
             return
+        elif len(query_text.split(' ')) > 100:
+            st.warning("Query is too long. Please enter a shorter query.")
+            return
+        elif len(query_text) > 1000:
+            st.warning("Query is too long. Please enter a shorter query.")
+            return
 
         if "SELECT" in query_text.upper():
             sql_query = query_text
