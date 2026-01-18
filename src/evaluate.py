@@ -3,8 +3,14 @@ import json
 from tqdm import tqdm
 from utils import get_metadata
 import concurrent.futures
-from typing import Dict, Any, Tuple
+from typing import Dict, Any
+import argparse
 
+def get_ids_from_sql(sql: str, db: DatasetsDatabase) -> set:
+    response = db.query(sql)
+    ids = [dataset["id"] for dataset in response]
+    return set(ids)
+    
 def process_eval_item(eval_item: Dict[str, Any], model_name: str, db: DatasetsDatabase) -> float:
     """Process a single evaluation item and return its score."""
     try:
@@ -13,19 +19,17 @@ def process_eval_item(eval_item: Dict[str, Any], model_name: str, db: DatasetsDa
             print(f"Error processing query '{eval_item['query']}': {error}")
             return 0.0
             
-        response = db.query(query)
-        ids = [dataset["id"] for dataset in response]
-        pred_ids = set(ids)
-        eval_ids = set(eval_item["ids"])
+        pred_ids = get_ids_from_sql(query, db)
+        eval_ids = get_ids_from_sql(eval_item["sql"], db)
         score = len(pred_ids & eval_ids) / max(len(pred_ids), len(eval_ids))
-        return score
+        return {"id": eval_item["id"], "score": score, "query": eval_item["query"], "pred_sql": query, "gold_sql": eval_item["sql"]}
     except Exception as e:
         print(f"Exception processing query '{eval_item['query']}': {str(e)}")
-        return 0.0
+        return {"id": eval_item["id"], "score": 0.0, "query": eval_item["query"], "pred_sql": None, "gold_sql": eval_item["sql"]}
 
 def evaluate(db: DatasetsDatabase, model_name: str = "google/gemini-3-pro-preview", max_workers: int = 5) -> float:
     """Evaluate the model's performance on the evaluation set with parallel processing."""
-    with open("src/evals.json", "r") as f:
+    with open("evals.json", "r") as f:
         evals = json.load(f)
     
     total_score = 0.0
@@ -37,6 +41,8 @@ def evaluate(db: DatasetsDatabase, model_name: str = "google/gemini-3-pro-previe
         }
         
         # Process results as they complete
+        save_path = "eval_results/eval_results_{}.json".format(model_name.split("/")[-1])
+        results = []
         for future in tqdm(
             concurrent.futures.as_completed(future_to_eval),
             total=len(evals),
@@ -44,15 +50,23 @@ def evaluate(db: DatasetsDatabase, model_name: str = "google/gemini-3-pro-previe
         ):
             eval_item = future_to_eval[future]
             try:
-                score = future.result()
-                total_score += score
+                result = future.result()
+                total_score += result["score"]
+                results.append(result)
             except Exception as e:
                 print(f"Exception in future for query '{eval_item['query']}': {str(e)}")
     
     avg_accuracy = total_score / len(evals) if evals else 0.0
     print(f"Average Accuracy: {avg_accuracy:.4f}")
+    sorted_results = sorted(results, key=lambda x: x["id"])
+    with open(save_path, "w") as f:
+        json.dump(sorted_results, f, indent=4)
     return avg_accuracy
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Evaluate model performance on the evaluation set.")
+    parser.add_argument("--model_name", type=str, default="google/gemini-3-pro-preview", help="Model name to evaluate")
+    parser.add_argument("--max_workers", type=int, default=5, help="Number of workers to use for parallel processing")
+    args = parser.parse_args()
     db = DatasetsDatabase()
-    evaluate(db, max_workers=1)
+    evaluate(db, max_workers=args.max_workers, model_name=args.model_name)
