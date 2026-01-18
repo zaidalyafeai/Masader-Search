@@ -272,8 +272,7 @@ class DatasetsDatabase:
             columns = [desc[0] for desc in self.cursor.description]
             return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
         except sqlite3.OperationalError as e:
-            print(f"Error executing query: {e}")
-            return []
+            raise e
     
     def close(self):
         """Close the database connection."""
