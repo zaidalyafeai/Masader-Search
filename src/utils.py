@@ -14,12 +14,13 @@ def get_metadata(
     backend = "openrouter",
     timeout = 3,
 ):
+    guidelines = open("GUIDELINES.md", "r").read()
     db = DatasetsDatabase()
     schema = get_schema(schema_name)
     # keys = list(json.loads(schema.schema()).keys()) 
     system_prompt = f"""
     You are a helpful assistant that generates SQL queries (using python sqlite3) based on a given text input. The database contains 
-    datasets with the following schema: {schema.schema()}, the table name is DATASETS. Each key in the schema represents a column in the table. 
+    datasets with the following schema: {schema.schema()} and guidlines {guidelines}, the table name is DATASETS. Each key in the schema represents a column in the table. 
     You need to return the id, Name of the dataset. Return the SQL query ONLY, do not return any additional text.
     """
     prompt = text_input
