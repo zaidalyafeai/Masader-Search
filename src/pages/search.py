@@ -26,11 +26,13 @@ def _render_app() -> None:
         st.error(f"Rate limit exceeded. Please try again in {retry_after} seconds.")
         return
 
-    st.markdown("""
-    <style>
-        input {color: #0054a3 !important;}
-    </style>
-    """, unsafe_allow_html=True)
+    # st.markdown("""
+    # <style>
+    #     input {color: #0054a3 !important;}
+    # </style>
+    # """, unsafe_allow_html=True)
+    
+    st.set_page_config(page_title="Masader Search", layout="wide")
     "# 📮 :rainbow[Masader Search]"
 
     st.info(
@@ -51,7 +53,7 @@ def _render_app() -> None:
     st.markdown("<h4>Examples:</h4>", unsafe_allow_html=True)
     examples = {
         "Audio datasets (more than 1000 hours)": "SELECT id, Name FROM DATASETS WHERE Form='audio' AND Volume > 1000 AND Unit='hours'",
-        "Permissive licensed datasets": "SELECT id, Name FROM DATASETS WHERE License <> 'custom' AND License NOT LIKE '%LDC%' AND License NOT LIKE '%ELRA%' AND License <> 'unknown'",
+        "Text datasets published after 2023": "SELECT id, Name FROM DATASETS WHERE Form='text' AND Year > 2023",
         "Datasets for language modelling > 100 billion tokens": "SELECT id, Name FROM DATASETS WHERE Tasks LIKE '%language modeling%' AND Volume > 100000000000",
     }
 
@@ -76,7 +78,7 @@ def _render_app() -> None:
     with mid:
         run = st.button("Search Masader", type="primary")
 
-    model_name = "moonshotai/kimi-k2"
+    model_name = "openai/gpt-5-mini"
     schema_name = "ar"
 
     if run:
@@ -101,7 +103,7 @@ def _render_app() -> None:
                 if query_text in examples:
                     sql_query = examples[query_text]
                 else:
-                    _message, sql_query, error = get_metadata(
+                    sql_query, error = get_metadata(
                         query_text,
                         model_name=model_name,
                         schema_name=schema_name,
