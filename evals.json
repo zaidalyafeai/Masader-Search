@@ -17,7 +17,7 @@
     {
         "id": 4,
         "query": "dialect identification datasets that contain the Yemeni and Saudi dialects",
-        "sql": "SELECT id FROM DATASETS WHERE (Dialect = 'Yemen' OR Subsets LIKE '%Yemen%') AND (Dialect = 'Saudi' OR Subsets LIKE '%Saudi%');"
+        "sql": "SELECT id FROM DATASETS WHERE (Dialect = 'Yemen' OR Subsets LIKE '%Yemen%') AND (Dialect = 'Saudi' OR Subsets LIKE '%Saudi%') AND Tasks LIKE '%dialect identification%';"
     },
     {
         "id": 5,
