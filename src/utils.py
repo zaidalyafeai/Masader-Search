@@ -4,6 +4,7 @@ from openai import OpenAI
 from schema import get_schema
 from dotenv import load_dotenv
 import time
+from db import DatasetsDatabase
 load_dotenv()
 def get_metadata(
     text_input,
@@ -13,6 +14,7 @@ def get_metadata(
     backend = "openrouter",
     timeout = 3,
 ):
+    db = DatasetsDatabase()
     schema = get_schema(schema_name)
     # keys = list(json.loads(schema.schema()).keys()) 
     system_prompt = f"""
@@ -21,8 +23,8 @@ def get_metadata(
     You need to return the id, Name of the dataset. Return the SQL query ONLY, do not return any additional text.
     """
     prompt = text_input
+    predictions = {}
     for _ in range(max_retries):
-        predictions = {}
         error = None
         messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}]
 
@@ -45,8 +47,7 @@ def get_metadata(
         try:
             predictions =  message.choices[0].message.content
             predictions = process_sql(predictions)
-        except json.JSONDecodeError as e:
-            error = str(e)
+            db.query(predictions)
         except Exception as e:
             if message is None:
                 error = "Timeout"
@@ -55,12 +56,10 @@ def get_metadata(
             else:
                 error = str(e)
             print(error)
-        if predictions != {}:
+        if error is None:
             break
-        else:
-            pass
-    time.sleep(timeout)
-    return message, predictions, error
+        time.sleep(timeout)
+    return predictions, error
 
 def removeStartAndEndQuotes(json_str):
     if json_str.startswith('"') and json_str.endswith('"'):
