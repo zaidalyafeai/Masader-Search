@@ -163,6 +163,8 @@ class DatasetsDatabase:
                             raise ValueError(f"Unsupported list type: {type(value[0])}")
                     else:
                         value = ""
+                elif self.schema[key]["answer_type"] == "bool":
+                    value = 1 if value == "True" else 0
                 sample.append(value)
             sample_data.append(tuple(sample))
 
@@ -276,23 +278,3 @@ class DatasetsDatabase:
     def close(self):
         """Close the database connection."""
         self.conn.close()
-
-# Example usage and demonstration
-if __name__ == "__main__":
-    db = DatasetsDatabase()
-    
-    print()
-    l = []
-    for data in db.query("SELECT id, Name, Link, Collection_Style FROM DATASETS WHERE Collection_Style LIKE '%LLM%' OR Domain LIKE '%LLM%'"):
-        print(data['id'], end = ",")    
-        l.append(data['Collection_Style'])
-    print()
-    print(set(l))
-    db.close()
-
-### "SELECT id, Name, Link FROM DATASETS WHERE Dialect='Egypt' OR Subsets LIKE '%Egypt%'"
-### SELECT id, Name, Link FROM DATASETS WHERE Volume > 100000000000 AND Unit='tokens' AND Tasks LIKE '%language modeling%'
-### SELECT id, Name, Link FROM DATASETS WHERE Host='HuggingFace' or Link LIKE '%huggingface%'
-### SELECT id, Name, Link, License FROM DATASETS WHERE License <> 'custom' AND License NOT LIKE '%LDC%' AND License NOT LIKE '%ELRA%' AND License <> 'unknown'
-### SELECT id, Name, Link, Volume FROM DATASETS WHERE Form='audio' AND Volume > 1000 AND Unit='hours'
-
