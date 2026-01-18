@@ -7,8 +7,8 @@ results = []
 for file in os.listdir("eval_results"):
     model_name = file.split("_")[-1]
     json_data = json.load(open("eval_results/" + file))
-    score = sum([item['score'] for item in json_data]) / len(json_data)
-    results.append([model_name, score * 100])
+    score = json_data['average_score'] * 100
+    results.append([model_name, score])
 
 sorted_results = sorted(results, key=lambda x: x[1], reverse=True)
 print(tabulate.tabulate(sorted_results, headers=["Model", "Score"], tablefmt="fancy_grid", floatfmt=".2f"))
