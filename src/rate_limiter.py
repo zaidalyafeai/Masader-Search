@@ -1,7 +1,6 @@
-from datetime import datetime, timedelta
-from typing import Dict, Optional
+import streamlit as st  
+from typing import Dict
 import time
-from streamlit.runtime.state import SessionStateProxy
 
 class RateLimiter:
     def __init__(self, requests: int, time_window: int = 60):
@@ -57,7 +56,6 @@ def get_client_ip() -> str:
     Get the client's IP address from Streamlit's session state
     Note: In a production environment, you might want to get the real IP from the request headers
     """
-    import streamlit as st
     if '_client_ip' not in st.session_state:
         st.session_state._client_ip = str(id(st.session_state))
     return st.session_state._client_ip

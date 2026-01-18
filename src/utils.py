@@ -12,17 +12,16 @@ def get_metadata(
     max_retries = 3,
     backend = "openrouter",
     timeout = 3,
-    version = "2.0",
 ):
     schema = get_schema(schema_name)
     # keys = list(json.loads(schema.schema()).keys()) 
     system_prompt = f"""
-    You are a helpful assistant that generates SQL queries (using sqlite3) based on a given text input. The database contains 
+    You are a helpful assistant that generates SQL queries (using python sqlite3) based on a given text input. The database contains 
     datasets with the following schema: {schema.schema()}, the table name is DATASETS. Each key in the schema represents a column in the table. 
     You need to return the id, Name of the dataset. Return the SQL query ONLY, do not return any additional text.
     """
     prompt = text_input
-    for i in range(max_retries):
+    for _ in range(max_retries):
         predictions = {}
         error = None
         messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}]
