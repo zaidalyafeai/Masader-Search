@@ -1,0 +1,57 @@
+[
+    {
+        "id": 1,
+        "query": "dataset named CIDAR",
+        "sql": "SELECT id FROM DATASETS WHERE Name = 'CIDAR';"
+    },
+    {
+        "id": 2,
+        "query": "published datasets in 2002",
+        "sql": "SELECT id FROM DATASETS WHERE Year = 2002;"
+    },
+    {
+        "id": 3,
+        "query": "datasets containing the egyptian dialect",
+        "sql": "SELECT id FROM DATASETS WHERE Dialect = 'Egypt' OR Subsets LIKE '%Egypt%'"
+    },
+    {
+        "id": 4,
+        "query": "dialect identification datasets that contain the Yemeni and Saudi dialects",
+        "sql": "SELECT id FROM DATASETS WHERE (Dialect = 'Yemen' OR Subsets LIKE '%Yemen%') AND (Dialect = 'Saudi' OR Subsets LIKE '%Saudi%');"
+    },
+    {
+        "id": 5,
+        "query": "datasets containing more than 100 billion tokens for language modeling tasks",
+        "sql": "SELECT id FROM DATASETS WHERE Volume > 100000000000 AND Tasks LIKE '%language modeling%'"
+    },
+    {
+        "id": 6,
+        "query": "datasets that have a huggingface link",
+        "sql": "SELECT id FROM DATASETS WHERE Host='HuggingFace' OR Link LIKE '%huggingface%' OR HF_Link <> ''"
+    },
+    {
+        "id": 7,
+        "query": "datasets that are tokenized",
+        "sql": "SELECT id FROM DATASETS WHERE Tokenized=1"
+    },
+    {
+        "id": 8,
+        "query": "datasets with a premissive license",
+        "sql": "SELECT id FROM DATASETS WHERE License <> 'custom' AND License NOT LIKE '%LDC%' AND License NOT LIKE '%ELRA%' AND License <> 'unknown'"
+    },
+    {
+        "id": 9,
+        "query": "datasets that use LLMs to generate or annotate the data",
+        "sql": "SELECT id FROM DATASETS WHERE Collection_Style LIKE '%LLM%' OR Domain LIKE '%LLM%'"
+    },
+    {
+        "id": 10,
+        "query": "datasets that contain old Arabic",
+        "sql": "SELECT id FROM DATASETS WHERE Dialect='Classical Arabic' OR Subsets LIKE '%Classical Arabic%'"
+    },
+    {
+        "id": 11,
+        "query": "datasets scrapped from social media",
+        "sql": "SELECT id FROM DATASETS WHERE Domain LIKE '%social media%'"
+    }
+]
